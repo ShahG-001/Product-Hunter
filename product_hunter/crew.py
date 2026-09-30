@@ -19,6 +19,7 @@ def _make_llm(api_key: str) -> LLM:
         base_url="https://api.groq.com/openai/v1",
         api_key=api_key,
         temperature=0.2,
+        max_completion_tokens=384,
     )
 
 
@@ -35,19 +36,21 @@ def _make_category_scout(category: str, llm: LLM, search_tool: SerperDevTool | N
         tools=[search_tool] if search_tool else [],
         allow_delegation=False,
         verbose=False,
-        max_iter=3,
+        max_iter=2,
     )
     task = Task(
         description=(
             f"Investigate category {category} for market {{market}} and channel {{channel}}. The sourcing "
             "model is {sourcing_model}, target gross margin {target_margin}%, currency {currency}. "
-            "User research notes: {research_notes}. Propose up to three specific product concepts. "
-            "For each, give buyer/problem, search evidence with source URLs/snippets when search is enabled, "
-            "assumptions, and missing evidence. Do not invent demand metrics or supplier facts. When "
-            "search is unavailable, label demand and competition observations as hypotheses."
+            "User research notes: {research_notes}. Propose at most two specific product concepts, "
+            "no more than 80 words per concept. If live search is enabled, make at most one search query "
+            "and include its useful URLs. Include buyer/problem, evidence, assumptions, and missing evidence. "
+            "Do not invent demand metrics or supplier facts. Without search, label demand and competition "
+            "observations as hypotheses."
         ),
-        expected_output="Up to three product concepts with buyer/problem, evidence, hypotheses, and validation gaps.",
+        expected_output="At most two short product concepts with evidence and validation gaps.",
         agent=scout,
+        context=[],
     )
     return scout, task
 
@@ -61,7 +64,7 @@ def _make_analyst(role: str, goal: str, backstory: str, llm: LLM, search_tool: S
         tools=[search_tool] if search_tool else [],
         allow_delegation=False,
         verbose=False,
-        max_iter=3,
+        max_iter=2,
     )
 
 
@@ -79,6 +82,7 @@ def run_product_hunt(brief: dict[str, Any], api_key: str, serper_api_key: str | 
         scout, task = _make_category_scout(category, llm, search_tool)
         agents.append(scout)
         tasks.append(task)
+    scout_tasks = list(tasks)
 
     competitor = _make_analyst(
         "Competitor Analyst",
@@ -89,16 +93,17 @@ def run_product_hunt(brief: dict[str, Any], api_key: str, serper_api_key: str | 
     )
     tasks.append(Task(
         description=(
-            "Review the scouts' product concepts for {market} and {channel}. When search is enabled, "
-            "search for actual competing offers and cite source URLs and observed prices/review information "
-            "only if visible in the search results. Also use notes: {research_notes}. Identify positioning, "
-            "possible differentiation, and evidence gaps. Never invent brands or measured saturation."
+            "Review the category scouts' concepts for {market} and {channel}. If live search is enabled, "
+            "make no more than one search query across the candidates. Cite URLs for actual competing offers. "
+            "For each concept, summarize competition, differentiation, and evidence gaps in at most 70 words. "
+            "Never invent brands, review counts, or measured saturation."
         ),
-        expected_output="Competitor assessment for each candidate with evidence, hypotheses, and gaps.",
+        expected_output="A concise, evidence-based competitor assessment for each candidate.",
         agent=competitor,
-        context=tasks.copy(),
+        context=scout_tasks,
     ))
     agents.append(competitor)
+    competitor_task = tasks[-1]
 
     pricing = _make_analyst(
         "Pricing Analyst",
@@ -109,19 +114,18 @@ def run_product_hunt(brief: dict[str, Any], api_key: str, serper_api_key: str | 
     )
     tasks.append(Task(
         description=(
-            "For each candidate, assess pricing for {channel} in {market}, using {currency}. When search "
-            "is enabled, search the candidate and competitor product offers for current displayed prices "
-            "and attach source URLs. Do not treat snippets as confirmed final checkout prices. Target "
-            "gross margin: {target_margin}%. Use notes {research_notes}. If cost or price inputs are "
-            "missing, say a reliable margin cannot be calculated and give the formula or a clearly "
-            "labeled illustrative scenario. Account for fees, fulfillment, shipping, returns, and taxes "
-            "only when data is supplied; list missing numbers."
+            "Assess price and unit economics for candidates on {channel} in {market} ({currency}); "
+            "target gross margin {target_margin}%. If live search is enabled, make at most one search query "
+            "and cite URLs for visible prices. Treat snippets as indicative, not checkout-verified. "
+            "Use figures only when supplied in scout outputs; otherwise state the formula and missing costs. "
+            "Limit output to 70 words per candidate."
         ),
-        expected_output="Price and unit-economics assessment separating observations, estimates, and unknowns.",
+        expected_output="A concise price and unit-economics assessment with missing inputs clearly listed.",
         agent=pricing,
-        context=tasks.copy(),
+        context=[*scout_tasks, competitor_task],
     ))
     agents.append(pricing)
+    pricing_task = tasks[-1]
 
     feasibility = _make_analyst(
         "Sourcing and Feasibility Analyst",
@@ -132,59 +136,55 @@ def run_product_hunt(brief: dict[str, Any], api_key: str, serper_api_key: str | 
     )
     tasks.append(Task(
         description=(
-            "Assess each candidate for {sourcing_model} in {market}. When search is enabled, look for "
-            "supplier availability, indicative MOQ or lead time only where a source states it; cite the URL. "
-            "Consider product complexity, "
-            "supplier availability, MOQ, lead time, shipping, storage, returns, quality control, "
-            "seasonality, and compliance questions. Use supplied facts for conclusions; make unknowns "
-            "explicit and recommend validation steps. Notes: {research_notes}."
+            "Assess candidate feasibility for {sourcing_model} in {market}. If live search is enabled, "
+            "make at most one query and cite sourced supplier availability, MOQ, or lead-time claims. "
+            "List the two main risks and one validation step per candidate, at most 70 words each. "
+            "Never guess compliance requirements or supplier facts."
         ),
-        expected_output="Feasibility screen, risks, unknowns, and practical validation actions per product.",
+        expected_output="Brief feasibility risks, unknowns, and validation steps for each candidate.",
         agent=feasibility,
-        context=tasks.copy(),
+        context=[*scout_tasks, competitor_task, pricing_task],
     ))
     agents.append(feasibility)
+    feasibility_task = tasks[-1]
 
     reviewer = _make_analyst(
         "Evidence Reviewer",
         "Audit unsupported claims, source limitations, and confidence gaps.",
         "You are a skeptical fact checker. You flag missing evidence and separate facts, estimates, and hypotheses.",
         llm,
-        search_tool,
+        None,
     )
     tasks.append(Task(
         description=(
-            "Audit all prior task outputs and user notes {research_notes}. For each candidate, list "
-            "claims supported by supplied evidence, estimates or hypotheses, conflicts, and the three "
-            "most important missing data points. Check that web claims have URLs and dates where available. "
-            "Do not add new market facts."
+            "Audit the scouts' and specialists' short reports. For each candidate, classify the main "
+            "claim as sourced or a hypothesis, flag missing evidence, and give one confidence label. "
+            "Do not add new market facts. Keep the whole audit under 160 words."
         ),
-        expected_output="Evidence audit with confidence labels and prioritized research gaps per candidate.",
+        expected_output="A compact evidence audit and confidence label for each candidate.",
         agent=reviewer,
-        context=tasks.copy(),
+        context=[*scout_tasks, competitor_task, pricing_task, feasibility_task],
     ))
     agents.append(reviewer)
+    reviewer_task = tasks[-1]
 
     recommender = _make_analyst(
         "Product Recommendation Analyst",
         "Turn the specialists' work into a cautious, prioritized decision brief.",
         "You make clear recommendations and explain uncertainty. A screen is not a guarantee of sales.",
         llm,
-        search_tool,
+        None,
     )
     tasks.append(Task(
         description=(
-            "Create the final report for {market}, {currency}, {channel}, and {sourcing_model}; "
-            "target gross margin {target_margin}%. Rank candidates using the scout, competitor, "
-            "pricing, feasibility, and evidence-review work. For each include concept, customer problem, "
-            "evidence status, competition, pricing/economics, feasibility, risks, confidence (low/medium/high), "
-            "recommendation (investigate/test/skip), and next validation steps. Do not assign false precision "
-            "or claim live market research when search was not used. Start with an executive summary and end with the top three "
-            "actions to take before spending money."
+            "Create a brief ranked report for {market}, {currency}, {channel}, and {sourcing_model}. "
+            "Use the evidence-review summary and rank no more than four candidates. For each include "
+            "concept, evidence confidence, key risk, and investigate/test/skip recommendation. No false "
+            "precision. Keep the whole report under 250 words and end with three validation actions."
         ),
-        expected_output="Markdown report with ranked opportunities, transparent evidence/assumptions, and validation steps.",
+        expected_output="A compact Markdown shortlist with transparent confidence and next steps.",
         agent=recommender,
-        context=tasks.copy(),
+        context=[reviewer_task],
     ))
     agents.append(recommender)
 
