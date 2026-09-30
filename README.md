@@ -4,7 +4,7 @@ A beginner-friendly e-commerce product screening app built with **Streamlit + Cr
 
 ## Agent team
 
-For every category you enter, the app creates one Category Scout. It then adds five shared specialists: Competitor Analyst, Pricing Analyst, Sourcing and Feasibility Analyst, Evidence Reviewer, and Product Recommendation Analyst. A run with three categories therefore uses eight agents. CrewAI runs their tasks as one sequential process so analysts can review earlier outputs.
+For every category you enter, the app creates one Category Scout. It then adds five shared specialists: Competitor Analyst, Pricing Analyst, Sourcing and Feasibility Analyst, Evidence Reviewer, and Product Recommendation Analyst. A run with two categories therefore uses seven agents. CrewAI runs their tasks as one sequential process so analysts can review earlier outputs. To stay within Groq's free-tier token rate, each run accepts up to two categories and 2,500 characters of notes; research other categories in separate runs.
 
 ## Research behavior and limits
 
@@ -24,9 +24,11 @@ Use GitHub Codespaces in your browser to edit and run the app. When deployed, St
 
 Follow [the browser-only guide](docs/beginner-setup.md).
 
+**Streamlit deployment setting:** select Python **3.13** in Advanced settings. The pinned CrewAI release supports Python 3.10–3.13, not 3.14. If an app is already deployed on Python 3.14, Streamlit requires deleting and redeploying it to change Python versions; preserve your URL and re-enter your secrets during redeployment.
+
 ## Groq connection
 
-CrewAI's `LLM` wrapper talks to Groq using the `GROQ_API_KEY` environment variable. The configured model is `openai/gpt-oss-120b`, served by Groq. This matches the model in the Groq example you supplied, while CrewAI remains responsible for agent orchestration. The Groq Python SDK is not called directly in this CrewAI app.
+CrewAI's native OpenAI-compatible connection talks to Groq at `https://api.groq.com/openai/v1` using the `GROQ_API_KEY` secret. CrewAI removes its leading `openai/` routing prefix, so the code uses `openai/openai/gpt-oss-120b` to send Groq the exact model ID `openai/gpt-oss-120b`. This configuration uses `custom_openai=True` and does not need CrewAI's optional LiteLLM adapter or a direct Groq SDK call.
 
 Keep the API key out of source code and GitHub. In Streamlit Community Cloud, save it under **App settings → Secrets** as:
 
