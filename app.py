@@ -46,12 +46,12 @@ with st.expander("What the agents do"):
         """
     )
 
-groq_api_key = os.environ.get("GROQ_API_KEY")
-if not groq_api_key:
+gemini_api_key = os.environ.get("GEMINI_API_KEY")
+if not gemini_api_key:
     try:
-        groq_api_key = st.secrets.get("GROQ_API_KEY")
+        gemini_api_key = st.secrets.get("GEMINI_API_KEY")
     except (FileNotFoundError, KeyError):
-        groq_api_key = None
+        gemini_api_key = None
 
 serper_api_key = os.environ.get("SERPER_API_KEY")
 if not serper_api_key:
@@ -66,12 +66,12 @@ use_web_search = st.checkbox(
     help="Search uses CrewAI's Serper tool. It searches the web and returns results/snippets; it does not guarantee marketplace data is complete.",
 )
 
-if not groq_api_key:
-    st.warning("Add GROQ_API_KEY in Streamlit Community Cloud → App settings → Secrets to run the agents.")
+if not gemini_api_key:
+    st.warning("Add GEMINI_API_KEY in Streamlit Community Cloud → App settings → Secrets to run the agents.")
 if use_web_search and not serper_api_key:
     st.warning("Live search needs SERPER_API_KEY. Add it in Streamlit Secrets, or turn off live search to analyze pasted notes only.")
 
-run_clicked = st.button("Run product research", type="primary", disabled=not groq_api_key or (use_web_search and not serper_api_key))
+run_clicked = st.button("Run product research", type="primary", disabled=not gemini_api_key or (use_web_search and not serper_api_key))
 if run_clicked:
     categories = [line.strip() for line in categories_text.splitlines() if line.strip()]
     if not market.strip():
@@ -79,7 +79,7 @@ if run_clicked:
     elif not categories:
         st.error("Enter at least one category.")
     elif len(categories) > 2:
-        st.error("Use two categories or fewer per run to stay within Groq's free-tier token-per-minute budget. Run additional categories separately.")
+        st.error("Use two categories or fewer per run to keep the research focused and reduce API usage. Run additional categories separately.")
     else:
         brief = {
             "market": market.strip(),
@@ -92,16 +92,16 @@ if run_clicked:
         }
         try:
             with st.spinner("CrewAI is coordinating the product research team…"):
-                result = run_product_hunt(brief, groq_api_key, serper_api_key if use_web_search else None)
+                result = run_product_hunt(brief, gemini_api_key, serper_api_key if use_web_search else None)
             st.success("Research complete")
             st.markdown(result)
             st.download_button("Download this report", data=str(result), file_name="product_hunter_report.md", mime="text/markdown")
         except Exception as exc:
             error_text = str(exc).lower()
-            if "413" in error_text or "tokens per minute" in error_text:
-                st.error("Groq's token-per-minute limit was reached. Try one category per run, shorten the research notes, or turn off live search and run again.")
+            if "413" in error_text or "tokens per minute" in error_text or "quota" in error_text or "429" in error_text:
+                st.error("The Gemini API usage limit may have been reached. Try one category per run, shorten the research notes, or try again later; check Google AI Studio for your current quota.")
             else:
-                st.error("The research run did not finish. Check the app logs and confirm your Groq key and model access.")
+                st.error("The research run did not finish. Check the app logs and confirm your Gemini key, model access, and API quota.")
             st.exception(exc)
 
 st.divider()
