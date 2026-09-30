@@ -1,0 +1,4 @@
+# Streamlit Community Cloud installs these remotely during deployment.
+crewai==1.15.21
+crewai-tools==1.15.21
+streamlit>=1.45,<2.0
