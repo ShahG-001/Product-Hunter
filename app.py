@@ -100,6 +100,8 @@ if run_clicked:
             error_text = str(exc).lower()
             if "413" in error_text or "tokens per minute" in error_text or "quota" in error_text or "429" in error_text:
                 st.error("The Gemini API usage limit may have been reached. Try one category per run, shorten the research notes, or try again later; check Google AI Studio for your current quota.")
+            elif "503" in error_text or "unavailable" in error_text or "high demand" in error_text:
+                st.warning("Gemini is temporarily unavailable or under high demand. Wait a few minutes and run the research again. Your key and app settings may be fine.")
             else:
                 st.error("The research run did not finish. Check the app logs and confirm your Gemini key, model access, and API quota.")
             st.exception(exc)
