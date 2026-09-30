@@ -6,7 +6,9 @@ from typing import Any
 from crewai import Agent, Crew, LLM, Process, Task
 from crewai_tools import SerperDevTool
 
-MODEL_NAME = "openai/gpt-oss-120b"
+# CrewAI strips one leading `openai/` routing prefix in custom_openai mode.
+# The doubled prefix ensures Groq receives its exact model ID: openai/gpt-oss-120b.
+MODEL_NAME = "openai/openai/gpt-oss-120b"
 
 
 def _make_llm(api_key: str) -> LLM:
