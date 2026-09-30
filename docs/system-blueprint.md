@@ -30,7 +30,7 @@ The Streamlit starter implements these roles with CrewAI. CrewAI's sequential pr
 
 The app can optionally search the web through CrewAI's Serper tool. It analyzes result snippets and links plus pasted notes; it does not crawl every marketplace listing or open arbitrary pasted URLs. Without search or source notes, demand and competition suggestions are hypotheses. Search/API terms, credits, and rate limits apply.
 
-To work within Groq's free-tier 8,000-token-per-minute limit, the UI accepts at most two categories and 2,500 characters of research notes per run. Agent outputs and contexts are kept short; use separate runs for more categories.
+To keep provider usage manageable, the UI accepts at most two categories and 2,500 characters of research notes per run. Agent outputs and contexts are kept short; use separate runs for more categories. The configured model is Gemini 3.8 Flash through CrewAI's native Google provider; check current API quotas.
 
 ## Workflow
 
