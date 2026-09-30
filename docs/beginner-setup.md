@@ -47,7 +47,8 @@ If you do not want to run a development preview, you can skip Step 4 and deploy 
 
 1. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
 2. Click **Create app** and choose your repository, branch (`main`), and entrypoint file (`app.py`).
-3. Open **Advanced settings → Secrets** and paste:
+3. Open **Advanced settings** and choose **Python 3.13**. CrewAI 1.15.x requires Python 3.10 to below 3.14; Python 3.14 is incompatible with this project's pinned CrewAI release.
+4. In the **Secrets** field, paste:
 
    ```toml
    GROQ_API_KEY = "paste-your-real-key-here"
@@ -56,10 +57,16 @@ If you do not want to run a development preview, you can skip Step 4 and deploy 
 
    If you are not using live web search, omit the `SERPER_API_KEY` line.
 
-4. Click **Deploy**. Streamlit installs `requirements.txt` on its server and gives you a `streamlit.app` URL.
-5. Open the URL, enter a target market, keep or change the sample categories, leave live search on (if you added the Serper key), paste any supplier/research notes, and click **Run product research**.
+5. Click **Deploy**. Streamlit installs `requirements.txt` on its server and gives you a `streamlit.app` URL.
+6. Open the URL, enter a target market, keep or change the sample categories, leave live search on (if you added the Serper key), paste any supplier/research notes, and click **Run product research**.
 
 If deployment fails, open the app's logs in Streamlit. Common causes are a typo in the secret, an unavailable model, a dependency build issue, or a Groq rate limit.
+
+## Fix: `pydantic.v1.errors.ConfigError` importing CrewAI
+
+If the traceback shows Python `3.14` and fails while importing `chromadb` / `pydantic.v1`, the app is running an unsupported Python version for the pinned CrewAI release. Select Python **3.13** for this app. Streamlit Community Cloud does not let you change Python after deployment: note your app URL and secrets, delete the deployed app, then create it again from the same GitHub repository and select Python 3.13 under **Advanced settings**. Re-enter the same secrets when deploying. [Streamlit's Python version guide](https://docs.streamlit.io/deploy/streamlit-community-cloud/manage-your-app/upgrade-python)
+
+If CrewAI says the Groq model is unsupported and LiteLLM is missing, make sure the deployed code uses CrewAI's `custom_openai=True` connection to `https://api.groq.com/openai/v1`. This lets CrewAI connect to Groq's OpenAI-compatible endpoint without adding LiteLLM. Commit the updated `product_hunter/crew.py` to GitHub so Streamlit redeploys it.
 
 ## Step 6: Make changes and update the live app
 
