@@ -15,7 +15,7 @@ with st.sidebar:
     market = st.text_input("Target market", placeholder="United States")
     currency = st.text_input("Currency", value="USD")
     channel = st.selectbox("Sales channel", ["Amazon", "Shopify / own store", "Etsy", "eBay", "Other / undecided"])
-    categories_text = st.text_area("Categories to investigate (one per line)", value="Kitchen & home\nPet supplies\nTravel accessories", height=110)
+    categories_text = st.text_area("Categories to investigate (one per line; two per run)", value="Kitchen & home\nPet supplies", height=90)
     sourcing_model = st.selectbox("Sourcing model", ["Private label", "Wholesale", "Local production", "Dropshipping", "Undecided"])
     target_margin = st.slider("Target gross margin (%)", 10, 80, 40, 5)
 
@@ -29,6 +29,7 @@ research_notes = st.text_area(
     "Paste notes or data (optional, but improves accuracy)",
     placeholder="Example: product title, price, review count, source URL, observed date; supplier quote, MOQ, shipping estimate; customer pain points...",
     height=190,
+    max_chars=2500,
 )
 
 with st.expander("What the agents do"):
@@ -77,8 +78,8 @@ if run_clicked:
         st.error("Enter a target market first.")
     elif not categories:
         st.error("Enter at least one category.")
-    elif len(categories) > 6:
-        st.error("Use six categories or fewer per run to keep the research focused and within API limits.")
+    elif len(categories) > 2:
+        st.error("Use two categories or fewer per run to stay within Groq's free-tier token-per-minute budget. Run additional categories separately.")
     else:
         brief = {
             "market": market.strip(),
@@ -96,7 +97,11 @@ if run_clicked:
             st.markdown(result)
             st.download_button("Download this report", data=str(result), file_name="product_hunter_report.md", mime="text/markdown")
         except Exception as exc:
-            st.error("The research run did not finish. Check the app logs and confirm your Groq key and model access.")
+            error_text = str(exc).lower()
+            if "413" in error_text or "tokens per minute" in error_text:
+                st.error("Groq's token-per-minute limit was reached. Try one category per run, shorten the research notes, or turn off live search and run again.")
+            else:
+                st.error("The research run did not finish. Check the app logs and confirm your Groq key and model access.")
             st.exception(exc)
 
 st.divider()
