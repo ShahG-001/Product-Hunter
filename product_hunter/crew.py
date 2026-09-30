@@ -6,13 +6,18 @@ from typing import Any
 from crewai import Agent, Crew, LLM, Process, Task
 from crewai_tools import SerperDevTool
 
-MODEL_NAME = "groq/openai/gpt-oss-120b"
+MODEL_NAME = "openai/gpt-oss-120b"
 
 
 def _make_llm(api_key: str) -> LLM:
-    """Create CrewAI's Groq-backed LLM; no separate Groq SDK call is needed."""
-    os.environ["GROQ_API_KEY"] = api_key
-    return LLM(model=MODEL_NAME, temperature=0.2)
+    """Use CrewAI's native OpenAI-compatible connection to Groq's API."""
+    return LLM(
+        model=MODEL_NAME,
+        custom_openai=True,
+        base_url="https://api.groq.com/openai/v1",
+        api_key=api_key,
+        temperature=0.2,
+    )
 
 
 def _make_category_scout(category: str, llm: LLM, search_tool: SerperDevTool | None) -> tuple[Agent, Task]:
